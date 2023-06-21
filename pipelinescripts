@@ -1,0 +1,119 @@
+!!!!!!!!!!!!!!!!!!!!!!!!kubernetes!!!!!!!!!!!!!!!!
+
+node{
+    stage('code checkout'){
+        git 'https://github.com/vikulrepo/insurance-project.git'
+    }
+    stage('deployment'){
+        echo 'deploying'
+        sh 'sudo kubectl apply -f kubernetesfile.yml'
+    }
+    stage('show'){
+       sh 'sudo kubectl get all'
+    }
+    stage('show pods'){
+       sh 'sudo kubectl get pods -o wide'
+       sh 'curl http://checkip.amazonaws.com'
+    }
+    }
+	
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+node{
+    def mavenHome
+    def mavenCMD
+    def docker
+    def dockerCMD
+    def tagName
+    stage('Prepare environment')
+       echo "initialise all variable"
+        mavenHome = tool name: 'maven' , type: 'maven'
+        mavenCMD ="${mavenHome}/bin/mvn"
+        docker = tool name: 'docker' , type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
+        dockerCMD = "${docker}/bin/docker"
+        tagName="3.0"
+        
+    stage('Code Checkout'){
+        echo "checkout from git repo"
+        git 'https://github.com/vikulrepo/insurance-project.git'
+        }
+    stage('Build the Application'){
+        echo "Cleaning... Compiling...Testing... Packaging..."
+        //sh 'mvn clean package'
+        sh "${mavenCMD} clean package"
+        }
+    stage('publish the report'){
+          echo "generating test reports"
+          publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '/var/lib/jenkins/workspace/insurewithk8/target/surefire-reports', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: '', useWrapperFileDirectly: true])    
+        }
+    stage('Containerise the application'){
+          echo "making the image out of the application"
+          sh "${dockerCMD} build -t vikuldocker/insurek8:${tagName} ."    
+        }
+    stage('Pushing it ot the DockerHub'){
+        echo 'Pushing the docker image to DockerHub'
+         withCredentials([string(credentialsId: 'dockerpass', variable: 'dockerpass')]) {
+            sh "${dockerCMD} login -u vikuldocker -p ${dockerpass}"
+            sh "${dockerCMD} push vikuldocker/insurek8:${tagName}"
+        }
+    stage('Configure and Deploy to the test-serverusing ansible'){  
+          ansiblePlaybook become: true, credentialsId: 'ansiblekey', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
+      }
+}
+}
+
+
+
+&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&selenium&&&&&&&&&&&&&&&&&&&7
+
+
+node{
+    stage('code checkout'){
+        git 'https://github.com/vikulrepo/insurance-project.git'
+    }
+    stage('test jar'){
+     sh 'sudo java -jar insurebatch5.jar'
+}
+}
+
+*****************************************************************terraform*******
+pipeline {
+  agent any
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git 'https://github.com/vikulrepo/insurance-project.git'
+      }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        // Execute 'terraform init' command
+        sh 'terraform init'
+      }
+    }
+
+    stage('Terraform Plan') {
+      steps {
+        // Execute 'terraform plan' command
+        sh 'terraform plan'
+      }
+    }
+
+    stage('Terraform Apply') {
+      steps {
+        // Execute 'terraform apply' command with auto-approval
+        sh 'terraform apply -auto-approve'
+      }
+    }
+
+    stage('Terraform Destroy') {
+      steps {
+        // Execute 'terraform destroy' command with auto-approval
+       sh 'terraform destroy -auto-approve'
+      }
+    }
+  }
+}
